@@ -3,113 +3,228 @@ const Location = require('../models/Location');
 const Crop = require('../models/Crop');
 const Recommendation = require('../models/Recommendation');
 
-// @desc    Get crop recommendations
+/**
+ * Resolve latitude/longitude for a given state and district.
+ * Priority:
+ *  1. Use coordinates stored in Location document
+ *  2. Fallback to Open-Meteo geocoding API (no API key required)
+ */
+const resolveCoordinates = async (locationDoc, state, district) => {
+  if (locationDoc?.coordinates?.latitude && locationDoc?.coordinates?.longitude) {
+    return {
+      latitude: locationDoc.coordinates.latitude,
+      longitude: locationDoc.coordinates.longitude
+    };
+  }
+
+  // Fallback to geocoding API
+  const geoUrl = 'https://geocoding-api.open-meteo.com/v1/search';
+  const params = {
+    name: district,
+    count: 1,
+    language: 'en',
+    format: 'json',
+    country: 'India'
+  };
+
+  const { data } = await axios.get(geoUrl, { params, timeout: 8000 });
+
+  if (!data.results || data.results.length === 0) {
+    throw new Error(`Could not resolve coordinates for ${district}, ${state}`);
+  }
+
+  const bestMatch = data.results[0];
+  return {
+    latitude: bestMatch.latitude,
+    longitude: bestMatch.longitude
+  };
+};
+
+/**
+ * Fetch recent and short-term forecast weather using Open-Meteo.
+ * This requires only coordinates and returns simple averages.
+ */
+const fetchWeatherFromOpenMeteo = async (latitude, longitude) => {
+  const url = 'https://api.open-meteo.com/v1/forecast';
+  const params = {
+    latitude,
+    longitude,
+    hourly: ['temperature_2m', 'relativehumidity_2m', 'precipitation'].join(','),
+    daily: ['temperature_2m_max', 'temperature_2_2m_min', 'precipitation_sum'].join(','),
+    past_days: 2,
+    forecast_days: 3,
+    timezone: 'auto'
+  };
+
+  const { data } = await axios.get(url, { params, timeout: 8000 });
+
+  const temps = data.hourly?.temperature_2m || [];
+  const humidities = data.hourly?.relativehumidity_2m || [];
+  const precip = data.hourly?.precipitation || [];
+
+  const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+
+  return {
+    avgTemperature: avg(temps) ?? 25,
+    avgRainfall: avg(precip) ?? 5,
+    avgHumidity: avg(humidities) ?? 60
+  };
+};
+
+/**
+ * Build soil snapshot from Location document.
+ * If any value is missing, fill with reasonable defaults.
+ */
+const buildSoilSnapshot = (location) => {
+  const soil = location?.soilData || {};
+
+  return {
+    ph: soil.ph?.mean ?? 6.5,
+    organicCarbon: soil.organicCarbon?.mean ?? 0.8,
+    nitrogen: soil.nitrogen?.mean ?? 120,
+    phosphorus: soil.phosphorus?.mean ?? 25,
+    potassium: soil.potassium?.mean ?? 180
+  };
+};
+
+/**
+ * Core recommendation pipeline used by both legacy and new routes.
+ */
+const runRecommendationPipeline = async ({ userId, state, district, season, useRealtimeWeather = false }) => {
+  if (!state || !district || !season) {
+    const error = new Error('Please provide state, district, and season');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const location = await Location.findOne({ state, district });
+
+  if (!location) {
+    const error = new Error(
+      'Location data not found. Please ensure data has been processed for this district.'
+    );
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // Soil snapshot from DB
+  const soilSnapshot = buildSoilSnapshot(location);
+
+  // Weather: either use stored aggregates or real-time from Open-Meteo
+  let weatherSnapshot;
+  if (useRealtimeWeather) {
+    const { latitude, longitude } = await resolveCoordinates(location, state, district);
+    weatherSnapshot = await fetchWeatherFromOpenMeteo(latitude, longitude);
+  } else {
+    const weather = location.weatherData || {};
+    weatherSnapshot = {
+      avgTemperature: weather.avgTemperature?.mean ?? 25,
+      avgRainfall: weather.avgRainfall?.mean ?? 800,
+      avgHumidity: weather.avgHumidity?.mean ?? 60
+    };
+  }
+
+  const mlPayload = {
+    state,
+    district,
+    season,
+    soil: soilSnapshot,
+    weather: weatherSnapshot
+  };
+
+  let mlResponse;
+  try {
+    mlResponse = await axios.post(
+      `${process.env.ML_SERVICE_URL}/predict`,
+      mlPayload,
+      { timeout: 10000 }
+    );
+  } catch (error) {
+    console.error('ML Service Error:', error.message);
+    const err = new Error('ML service unavailable. Please try again later.');
+    err.statusCode = 503;
+    throw err;
+  }
+
+  const predictions = mlResponse.data.recommendations || [];
+
+  const recommendations = await Promise.all(
+    predictions.map(async (pred) => {
+      const crop = await Crop.findOne({ name: pred.cropName });
+      return {
+        crop: crop?._id,
+        cropName: pred.cropName,
+        suitabilityScore: pred.suitabilityScore,
+        yieldPrediction: pred.yieldPrediction,
+        explanation: pred.explanation,
+        environmentalFactors: pred.environmentalFactors
+      };
+    })
+  );
+
+  const environmentalSnapshot = {
+    soil: soilSnapshot,
+    weather: weatherSnapshot
+  };
+
+  const recommendationDoc = await Recommendation.create({
+    user: userId,
+    location: { state, district },
+    season,
+    recommendations,
+    environmentalSnapshot
+  });
+
+  return {
+    recommendations,
+    environmentalSnapshot,
+    recommendationId: recommendationDoc._id
+  };
+};
+
+// @desc    Get crop recommendations (using stored aggregates)
 // @route   POST /api/recommendations
 // @access  Private
-exports.getRecommendations = async (req, res, next) => {
+exports.getRecommendations = async (req, res) => {
   try {
     const { state, district, season } = req.body;
     const userId = req.user.id;
 
-    if (!state || !district || !season) {
-      return res.status(400).json({ message: 'Please provide state, district, and season' });
-    }
-
-    // Fetch location data with environmental information
-    let location = await Location.findOne({ state, district });
-    
-    if (!location) {
-      return res.status(404).json({ 
-        message: 'Location data not found. Please ensure data has been processed for this district.' 
-      });
-    }
-
-    // Prepare features for ML service
-    const features = {
+    const result = await runRecommendationPipeline({
+      userId,
       state,
       district,
       season,
-      soil: {
-        ph: location.soilData.ph.mean,
-        organicCarbon: location.soilData.organicCarbon.mean,
-        nitrogen: location.soilData.nitrogen.mean,
-        phosphorus: location.soilData.phosphorus.mean,
-        potassium: location.soilData.potassium.mean
-      },
-      weather: {
-        avgTemperature: location.weatherData.avgTemperature.mean,
-        avgRainfall: location.weatherData.avgRainfall.mean,
-        avgHumidity: location.weatherData.avgHumidity.mean
-      }
-    };
-
-    // Call ML service
-    let mlResponse;
-    try {
-      mlResponse = await axios.post(
-        `${process.env.ML_SERVICE_URL}/predict`,
-        features,
-        { timeout: 10000 }
-      );
-    } catch (error) {
-      console.error('ML Service Error:', error.message);
-      return res.status(503).json({ 
-        message: 'ML service unavailable. Please try again later.',
-        error: error.message 
-      });
-    }
-
-    const predictions = mlResponse.data.recommendations || [];
-    
-    // Enrich with crop details
-    const recommendations = await Promise.all(
-      predictions.map(async (pred) => {
-        const crop = await Crop.findOne({ name: pred.cropName });
-        return {
-          crop: crop?._id,
-          cropName: pred.cropName,
-          suitabilityScore: pred.suitabilityScore,
-          yieldPrediction: pred.yieldPrediction,
-          explanation: pred.explanation,
-          environmentalFactors: pred.environmentalFactors
-        };
-      })
-    );
-
-    // Create environmental snapshot
-    const environmentalSnapshot = {
-      soil: {
-        ph: location.soilData.ph.mean,
-        organicCarbon: location.soilData.organicCarbon.mean,
-        nitrogen: location.soilData.nitrogen.mean,
-        phosphorus: location.soilData.phosphorus.mean,
-        potassium: location.soilData.potassium.mean
-      },
-      weather: {
-        avgTemperature: location.weatherData.avgTemperature.mean,
-        avgRainfall: location.weatherData.avgRainfall.mean,
-        avgHumidity: location.weatherData.avgHumidity.mean
-      }
-    };
-
-    // Save recommendation history
-    const recommendation = await Recommendation.create({
-      user: userId,
-      location: { state, district },
-      season,
-      recommendations,
-      environmentalSnapshot
+      useRealtimeWeather: false
     });
 
-    res.json({
-      success: true,
-      recommendations,
-      environmentalSnapshot,
-      recommendationId: recommendation._id
-    });
+    res.json({ success: true, ...result });
   } catch (error) {
     console.error('Recommendation Error:', error);
-    res.status(500).json({ message: error.message });
+    res.status(error.statusCode || 500).json({ message: error.message });
+  }
+};
+
+// @desc    Generate recommendations with real-time weather
+// @route   POST /api/recommendations/generate
+// @access  Private
+exports.generateRecommendations = async (req, res) => {
+  try {
+    const { state, district, season } = req.body;
+    const userId = req.user.id;
+
+    const result = await runRecommendationPipeline({
+      userId,
+      state,
+      district,
+      season,
+      useRealtimeWeather: true
+    });
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Real-time Recommendation Error:', error);
+    res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 

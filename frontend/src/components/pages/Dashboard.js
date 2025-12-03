@@ -24,14 +24,21 @@ const Dashboard = () => {
   });
 
   // Fetch districts when state is selected
-  const { data: districtsData } = useQuery(
+  const { data: districtsData, isLoading: districtsLoading, error: districtsError } = useQuery(
     ['districts', formData.state],
     async () => {
       if (!formData.state) return [];
-      const res = await api.get(`/locations/districts/${formData.state}`);
-      return res.data.districts;
+      const res = await api.get(`/locations/districts/${encodeURIComponent(formData.state)}`);
+      if (!res.data.success) {
+        throw new Error(res.data.message || 'Failed to fetch districts');
+      }
+      return res.data.districts || [];
     },
-    { enabled: !!formData.state }
+    { 
+      enabled: !!formData.state,
+      retry: 1,
+      staleTime: 5 * 60 * 1000 // Cache for 5 minutes
+    }
   );
 
   const handleChange = (e) => {
@@ -49,7 +56,7 @@ const Dashboard = () => {
     setRecommendations(null);
 
     try {
-      const res = await api.post('/recommendations', formData);
+      const res = await api.post('/recommendations/generate', formData);
       setRecommendations(res.data);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to get recommendations');
@@ -92,15 +99,32 @@ const Dashboard = () => {
                   value={formData.district}
                   onChange={handleChange}
                   required
-                  disabled={!formData.state}
+                  disabled={!formData.state || districtsLoading}
                 >
-                  <option value="">Select District</option>
-                  {districtsData?.map((district) => (
-                    <option key={district} value={district}>
-                      {district}
+                  <option value="">
+                    {districtsLoading 
+                      ? 'Loading districts...' 
+                      : districtsError 
+                      ? 'Error loading districts' 
+                      : 'Select District'}
+                  </option>
+                  {districtsData && districtsData.length > 0 ? (
+                    districtsData.map((district) => (
+                      <option key={district} value={district}>
+                        {district}
+                      </option>
+                    ))
+                  ) : districtsData && districtsData.length === 0 && !districtsLoading ? (
+                    <option value="" disabled>
+                      No districts available
                     </option>
-                  ))}
+                  ) : null}
                 </select>
+                {districtsError && (
+                  <small style={{ color: 'red', display: 'block', marginTop: '5px' }}>
+                    {districtsError.response?.data?.message || districtsError.message || 'Failed to load districts'}
+                  </small>
+                )}
               </div>
 
               <div className="form-group">

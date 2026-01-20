@@ -1,6 +1,17 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+// Helper to get JWT secret consistently
+const getJwtSecret = () => {
+  if (process.env.JWT_SECRET && process.env.JWT_SECRET.trim().length > 0) {
+    return process.env.JWT_SECRET;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET is not configured');
+  }
+  return 'dev-insecure-jwt-secret';
+};
+
 // Protect routes - verify JWT token
 exports.protect = async (req, res, next) => {
   let token;
@@ -14,7 +25,7 @@ exports.protect = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
     req.user = await User.findById(decoded.id).select('-password');
     
     if (!req.user) {

@@ -57,7 +57,8 @@ const Dashboard = () => {
 
     try {
       const res = await api.post('/recommendations/generate', formData);
-      setRecommendations(res.data);
+      // Backend returns { success, data: { recommendations } }
+      setRecommendations(res.data.data);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to get recommendations');
     } finally {

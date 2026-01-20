@@ -25,7 +25,7 @@ router.get('/:id', getRecommendation);
 // 2️⃣ NEW ML ROUTE (Fixed 404 + Fixed 422)
 // -------------------------------
 
-const ML_URL = process.env.REACT_APP_ML_SERVICE_URL || "http://localhost:8000";
+const ML_URL = process.env.ML_SERVICE_URL || "http://localhost:8000";
 
 router.post('/generate', async (req, res) => {
   try {

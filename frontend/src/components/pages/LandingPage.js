@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import './LandingPage.css';
@@ -10,7 +10,7 @@ const LandingPage = () => {
 
   // If user is logged in, redirect to dashboard
   if (user) {
-    return <Link to="/dashboard" />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return (
@@ -69,8 +69,8 @@ const LandingPage = () => {
           <div className="visual-card">
             <div className="card-icon">🌾</div>
             <div className="card-content">
-              <h3>Rice</h3>
-              <p>Suitability: 94%</p>
+              <h3>{t('crop_rice')}</h3>
+              <p>{t('suitability_label')}: 94%</p>
               <div className="progress-bar">
                 <div className="progress-fill" style={{ width: '94%' }}></div>
               </div>
@@ -79,8 +79,8 @@ const LandingPage = () => {
           <div className="visual-card">
             <div className="card-icon">🌽</div>
             <div className="card-content">
-              <h3>Maize</h3>
-              <p>Suitability: 87%</p>
+              <h3>{t('crop_maize')}</h3>
+              <p>{t('suitability_label')}: 87%</p>
               <div className="progress-bar">
                 <div className="progress-fill" style={{ width: '87%' }}></div>
               </div>
@@ -89,8 +89,8 @@ const LandingPage = () => {
           <div className="visual-card">
             <div className="card-icon">🌿</div>
             <div className="card-content">
-              <h3>Soybean</h3>
-              <p>Suitability: 82%</p>
+              <h3>{t('crop_soybean')}</h3>
+              <p>{t('suitability_label')}: 82%</p>
               <div className="progress-bar">
                 <div className="progress-fill" style={{ width: '82%' }}></div>
               </div>

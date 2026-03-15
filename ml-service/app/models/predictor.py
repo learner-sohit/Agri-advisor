@@ -11,9 +11,11 @@ import numpy as np
 import pickle
 import json
 import os
+import csv
 import requests
 from typing import List, Dict, Optional
 from functools import lru_cache
+from collections import defaultdict
 
 class CropPredictor:
     """
@@ -53,6 +55,49 @@ class CropPredictor:
         'AUTUMN': ['CEREALS_RICE', 'PULSES', 'VEGETABLES', 'OILSEEDS', 'CEREALS_MAIZE'],
         'WHOLE YEAR': ['SUGARCANE', 'VEGETABLES', 'FRUITS', 'PLANTATION', 'SPICES', 'FIBER']
     }
+
+    # Preferred specific crop labels for each modeled category.
+    CATEGORY_TO_SPECIFIC_CROPS = {
+        'CEREALS_RICE': ['Rice'],
+        'CEREALS_WHEAT': ['Wheat'],
+        'CEREALS_MAIZE': ['Maize'],
+        'CEREALS_BARLEY': ['Barley'],
+        'CEREALS_MILLETS': ['Bajra', 'Jowar', 'Ragi', 'Small Millets'],
+        'PULSES': ['Gram', 'Moong', 'Urad', 'Arhar/Tur'],
+        'OILSEEDS': ['Mustard', 'Soybean', 'Groundnut', 'Sesamum'],
+        'SUGARCANE': ['Sugarcane'],
+        'COTTON': ['Cotton'],
+        'JUTE': ['Jute'],
+        'TOBACCO': ['Tobacco'],
+        'VEGETABLES': ['Potato', 'Onion', 'Tomato', 'Brinjal'],
+        'FRUITS': ['Banana', 'Mango', 'Citrus'],
+        'SPICES': ['Chillies', 'Turmeric', 'Ginger', 'Coriander'],
+        'PLANTATION': ['Coconut', 'Tea', 'Coffee'],
+        'FIBER': ['Mesta', 'Sunhemp', 'Flax']
+    }
+
+    CATEGORY_KEYWORDS = {
+        'CEREALS_RICE': ['RICE', 'PADDY'],
+        'CEREALS_WHEAT': ['WHEAT'],
+        'CEREALS_MAIZE': ['MAIZE'],
+        'CEREALS_BARLEY': ['BARLEY'],
+        'CEREALS_MILLETS': ['MILLET', 'BAJRA', 'JOWAR', 'RAGI', 'KORRA', 'SAMAI', 'VARAGU'],
+        'PULSES': ['PULSE', 'GRAM', 'MOONG', 'URAD', 'ARHAR', 'LENTIL', 'PEA'],
+        'OILSEEDS': ['OILSEED', 'MUSTARD', 'SOYABEAN', 'SOYBEAN', 'GROUNDNUT', 'SESAMUM', 'CASTOR'],
+        'SUGARCANE': ['SUGARCANE'],
+        'COTTON': ['COTTON'],
+        'JUTE': ['JUTE'],
+        'TOBACCO': ['TOBACCO'],
+        'VEGETABLES': ['VEGETABLE', 'POTATO', 'ONION', 'TOMATO', 'BRINJAL'],
+        'FRUITS': ['FRUIT', 'BANANA', 'MANGO', 'CITRUS', 'APPLE', 'ORANGE', 'GRAPES'],
+        'SPICES': ['SPICE', 'CHILLI', 'TURMERIC', 'GINGER', 'CORIANDER', 'CARDAMOM'],
+        'PLANTATION': ['PLANTATION', 'COCONUT', 'TEA', 'COFFEE'],
+        'FIBER': ['FIBER', 'FIBRE', 'MESTA', 'SUNHEMP', 'FLAX']
+    }
+
+    # Minimum evidence for a crop to be recommended as "precise".
+    MIN_HIST_RECORDS = 8
+    MIN_HIST_YEARS = 3
     
     def __init__(self, model_dir: str = None):
         self.model_dir = model_dir or os.path.join(
@@ -66,6 +111,151 @@ class CropPredictor:
         # Load models and data
         self._load_models()
         self._load_crop_database()
+        self.location_crop_candidates = self._load_location_crop_candidates()
+
+    def _safe_float(self, value, default=0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _safe_int(self, value, default=0) -> int:
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return default
+
+    def _normalize_text(self, value: str) -> str:
+        return " ".join(str(value).strip().upper().split())
+
+    def _format_crop_display_name(self, value: str) -> str:
+        cleaned = " ".join(str(value).strip().replace('_', ' ').split())
+        return cleaned.title()
+
+    def _map_raw_crop_to_category(self, crop_name: str) -> Optional[str]:
+        crop_text = self._normalize_text(crop_name)
+        for category, keywords in self.CATEGORY_KEYWORDS.items():
+            for keyword in keywords:
+                if keyword in crop_text:
+                    return category
+        return None
+
+    def _load_location_crop_candidates(self) -> Dict[str, Dict[str, List[str]]]:
+        """
+        Build district-season specific crop candidates from historical production data.
+        Maps each (state, district, season, category) to ranked specific crops.
+        """
+        candidates = {}
+        csv_path = os.path.abspath(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'crop_production.csv')
+        )
+
+        if not os.path.exists(csv_path):
+            return candidates
+
+        ranked_scores = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
+        support_stats = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(lambda: {'records': 0, 'years': set()}))
+        )
+
+        try:
+            with open(csv_path, 'r', encoding='utf-8') as csv_file:
+                reader = csv.DictReader(csv_file)
+                for row in reader:
+                    state = self._normalize_text(row.get('State_Name', ''))
+                    district = self._normalize_text(row.get('District_Name', ''))
+                    season = self._normalize_text(row.get('Season', ''))
+                    crop_raw = row.get('Crop', '')
+
+                    if not state or not district or not season or not crop_raw:
+                        continue
+
+                    category = self._map_raw_crop_to_category(crop_raw)
+                    if not category:
+                        continue
+
+                    crop_display = self._format_crop_display_name(crop_raw)
+                    production = self._safe_float(row.get('Production'), 0.0)
+                    area = self._safe_float(row.get('Area'), 0.0)
+                    crop_year = self._safe_int(row.get('Crop_Year'), 0)
+                    weight = (production if production > 0 else 1.0) + (area * 0.1 if area > 0 else 0.0)
+
+                    key_season = f"{state}_{district}_{season}"
+                    key_any = f"{state}_{district}_ANY"
+                    key_state_season = f"{state}__STATE__{season}"
+                    key_state_any = f"{state}__STATE__ANY"
+
+                    ranked_scores[key_season][category][crop_display] += weight
+                    ranked_scores[key_any][category][crop_display] += weight
+                    ranked_scores[key_state_season][category][crop_display] += weight
+                    ranked_scores[key_state_any][category][crop_display] += weight
+
+                    for support_key in [key_season, key_any, key_state_season, key_state_any]:
+                        support_stats[support_key][category][crop_display]['records'] += 1
+                        if crop_year > 0:
+                            support_stats[support_key][category][crop_display]['years'].add(crop_year)
+
+            for key, category_scores in ranked_scores.items():
+                candidates[key] = {}
+                for category, crop_scores in category_scores.items():
+                    ordered = sorted(crop_scores.items(), key=lambda x: x[1], reverse=True)
+                    strict_candidates = []
+                    relaxed_candidates = []
+
+                    for crop, _ in ordered:
+                        stats = support_stats[key][category][crop]
+                        record_count = stats['records']
+                        year_count = len(stats['years'])
+
+                        if record_count >= self.MIN_HIST_RECORDS and year_count >= self.MIN_HIST_YEARS:
+                            strict_candidates.append(crop)
+                        elif record_count >= 2 and year_count >= 1:
+                            relaxed_candidates.append(crop)
+
+                    # Prefer statistically stronger candidates; fallback to light-evidence candidates if needed.
+                    if strict_candidates:
+                        candidates[key][category] = strict_candidates
+                    else:
+                        candidates[key][category] = relaxed_candidates
+
+        except Exception as e:
+            print(f"Warning: unable to load district crop candidates: {e}")
+            return {}
+
+        return candidates
+
+    def _select_specific_crop(
+        self,
+        category: str,
+        state: str,
+        district: str,
+        season: str,
+        used_names: set,
+        strict_data_mode: bool = True
+    ) -> Optional[str]:
+        state_norm = self._normalize_text(state)
+        district_norm = self._normalize_text(district)
+        season_norm = self._normalize_text(season)
+
+        for key in [
+            f"{state_norm}_{district_norm}_{season_norm}",
+            f"{state_norm}_{district_norm}_ANY",
+            f"{state_norm}__STATE__{season_norm}",
+            f"{state_norm}__STATE__ANY"
+        ]:
+            category_data = self.location_crop_candidates.get(key, {})
+            for crop_name in category_data.get(category, []):
+                if crop_name not in used_names:
+                    return crop_name
+
+        if strict_data_mode:
+            return None
+
+        for crop_name in self.CATEGORY_TO_SPECIFIC_CROPS.get(category, []):
+            if crop_name not in used_names:
+                return crop_name
+
+        return self._format_crop_display_name(category)
     
     def _load_models(self):
         """Load trained ML models and encoders."""
@@ -851,6 +1041,8 @@ class CropPredictor:
         season_crops = self._get_crops_for_season(state, district, season)
         print(f"🌱 Season '{season}' crops for {district}: {season_crops}")
         
+        used_specific_crop_names = set()
+
         if self.use_ml_model:
             # ML-based prediction with season filtering
             try:
@@ -908,23 +1100,40 @@ class CropPredictor:
                     
                     if score < 30:
                         continue
+
+                    # Keep recommendations season-accurate for farmer trust.
+                    if not is_season_match:
+                        continue
                     
                     # Get historical data
                     historical = self._get_district_historical_data(state, district, crop_name)
+
+                    # Convert category prediction into a precise crop for user-facing output.
+                    specific_crop_name = self._select_specific_crop(
+                        crop_name,
+                        state,
+                        district,
+                        season,
+                        used_specific_crop_names,
+                        strict_data_mode=True
+                    )
+                    if not specific_crop_name:
+                        continue
+                    used_specific_crop_names.add(specific_crop_name)
                     
                     # Predict yield
                     yield_pred = self._predict_yield_ml(feature_vector, crop_name, features)
                     
                     # Generate explanation with season and temp info
                     explanation = self._generate_season_explanation(
-                        crop_name, features, score, is_season_match, temp_suit, historical
+                        specific_crop_name, features, score, is_season_match, temp_suit, historical, crop_name
                     )
                     
                     # Calculate environmental factors
                     env_factors = self._calculate_environmental_factors(features, historical)
                     
                     recommendations.append({
-                        'cropName': crop_name,
+                        'cropName': specific_crop_name,
                         'suitabilityScore': round(score, 1),
                         'yieldPrediction': yield_pred,
                         'explanation': explanation,
@@ -955,8 +1164,9 @@ class CropPredictor:
         # Return top 5
         return recommendations[:5]
     
-    def _generate_season_explanation(self, crop_name: str, features: Dict, score: float, 
-                                      is_season_match: bool, temp_suit: float, historical: Dict = None) -> str:
+    def _generate_season_explanation(self, crop_name: str, features: Dict, score: float,
+                                      is_season_match: bool, temp_suit: float, historical: Dict = None,
+                                      temp_reference_crop: Optional[str] = None) -> str:
         """Generate explanation with season and temperature info."""
         explanations = []
         
@@ -976,7 +1186,8 @@ class CropPredictor:
             explanations.append(f"Not typically grown in {season} - consider alternative seasons.")
         
         temp = features.get('avg_temperature', 25)
-        temp_range = self.CROP_TEMP_RANGES.get(crop_name, (15, 35))
+        temp_lookup = temp_reference_crop or crop_name
+        temp_range = self.CROP_TEMP_RANGES.get(temp_lookup, (15, 35))
         if temp_suit >= 0.8:
             explanations.append(f"Temperature ({temp:.1f}°C) is optimal for this crop.")
         elif temp_suit >= 0.6:
@@ -1000,6 +1211,7 @@ class CropPredictor:
             season_crops = self.DEFAULT_SEASON_CROPS.get(season, [])
         
         # For rule-based, recommend crops that match the season
+        used_specific_crop_names = set()
         for crop_name in season_crops:
             temp_suit = self._calculate_temp_suitability(crop_name, temperature)
             
@@ -1027,16 +1239,29 @@ class CropPredictor:
             }
             
             temp_range = self.CROP_TEMP_RANGES.get(crop_name, (15, 35))
+            specific_crop_name = self._select_specific_crop(
+                crop_name,
+                features.get('state', ''),
+                features.get('district', ''),
+                season,
+                used_specific_crop_names,
+                strict_data_mode=True
+            )
+            if not specific_crop_name:
+                continue
+            used_specific_crop_names.add(specific_crop_name)
             explanation = f"{crop_name} is recommended for {season} season. Temperature ({temperature:.1f}°C) "
             if temp_suit >= 0.8:
                 explanation += f"is optimal (ideal: {temp_range[0]}-{temp_range[1]}°C)."
             else:
                 explanation += f"is acceptable (optimal: {temp_range[0]}-{temp_range[1]}°C)."
+
+            explanation = explanation.replace(crop_name, specific_crop_name)
             
             env_factors = self._calculate_environmental_factors(features)
             
             recommendations.append({
-                'cropName': crop_name,
+                'cropName': specific_crop_name,
                 'suitabilityScore': round(score, 1),
                 'yieldPrediction': yield_pred,
                 'explanation': explanation,

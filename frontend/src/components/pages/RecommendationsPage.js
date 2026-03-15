@@ -34,6 +34,33 @@ const RecommendationsPage = () => {
   const { recommendations: crops } = recommendations;
   const { soil, weather } = environmentalSnapshot || {};
 
+  const formatCropName = (name) => {
+    if (!name) return 'Unknown Crop';
+    return String(name)
+      .replace(/_/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  const formatScore = (score) => {
+    const numeric = Number(score);
+    if (!Number.isFinite(numeric)) {
+      return '0';
+    }
+    return numeric.toFixed(1).replace(/\.0$/, '');
+  };
+
+  const truncateText = (text, maxLength = 110) => {
+    if (!text) {
+      return 'No explanation available.';
+    }
+    if (text.length <= maxLength) {
+      return text;
+    }
+    return `${text.substring(0, maxLength).trim()}...`;
+  };
+
   return (
     <div className="recommendations-page">
       <div className="recommendations-container">
@@ -115,9 +142,9 @@ const RecommendationsPage = () => {
               <div className="crop-rank">#{index + 1}</div>
               
               <div className="crop-header">
-                <h3 className="crop-name">{crop.cropName}</h3>
+                <h3 className="crop-name">{formatCropName(crop.cropName)}</h3>
                 <div className={`suitability-badge ${getSuitabilityClass(crop.suitabilityScore)}`}>
-                  {crop.suitabilityScore}%
+                  {formatScore(crop.suitabilityScore)}%
                 </div>
               </div>
 
@@ -136,7 +163,7 @@ const RecommendationsPage = () => {
                 <span>{crop.yieldPrediction?.expected?.toLocaleString()} kg/ha expected</span>
               </div>
 
-              <p className="crop-explanation">{crop.explanation?.substring(0, 100)}...</p>
+              <p className="crop-explanation">{truncateText(crop.explanation)}</p>
 
               {crop.environmentalFactors && (
                 <div className="crop-factors">

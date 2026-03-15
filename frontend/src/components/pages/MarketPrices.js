@@ -1,12 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import React, { useState, useEffect, useMemo } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { useAuth } from '../../context/AuthContext';
+import api from '../../utils/api';
 import './MarketPrices.css';
 
 const MarketPrices = () => {
+  const { user } = useAuth();
   const [selectedCrop, setSelectedCrop] = useState('rice');
-  const [selectedState, setSelectedState] = useState('all');
+  const [selectedState, setSelectedState] = useState('');
   const [timeRange, setTimeRange] = useState('1month');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [lastUpdated, setLastUpdated] = useState('');
+  const [confidence, setConfidence] = useState('');
+  const [statesLoading, setStatesLoading] = useState(false);
+  const [availableStates, setAvailableStates] = useState([]);
 
   // Crop data with icons
   const crops = [
@@ -22,93 +30,182 @@ const MarketPrices = () => {
     { id: 'maize', name: 'Maize', icon: '🌽', unit: 'quintal' },
   ];
 
-  const states = [
-    { id: 'all', name: 'All India' },
-    { id: 'punjab', name: 'Punjab' },
-    { id: 'haryana', name: 'Haryana' },
-    { id: 'up', name: 'Uttar Pradesh' },
-    { id: 'maharashtra', name: 'Maharashtra' },
-    { id: 'karnataka', name: 'Karnataka' },
-    { id: 'mp', name: 'Madhya Pradesh' },
-    { id: 'rajasthan', name: 'Rajasthan' },
-    { id: 'gujarat', name: 'Gujarat' },
-  ];
-
-  // Generate mock price data
-  const generatePriceData = (crop, days) => {
-    const basePrices = {
-      rice: 2200, wheat: 2400, cotton: 6500, sugarcane: 350,
-      soybean: 4500, groundnut: 5500, potato: 1500, onion: 2000,
-      tomato: 2500, maize: 1800,
-    };
-    const base = basePrices[crop] || 2000;
-    const data = [];
-    
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const variation = Math.sin(i / 5) * (base * 0.1) + (Math.random() - 0.5) * (base * 0.05);
-      data.push({
-        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        price: Math.round(base + variation),
-        minPrice: Math.round(base + variation - base * 0.05),
-        maxPrice: Math.round(base + variation + base * 0.05),
-      });
-    }
-    return data;
-  };
-
-  // Generate mandi prices
-  const generateMandiPrices = (crop) => {
-    const basePrices = {
-      rice: 2200, wheat: 2400, cotton: 6500, sugarcane: 350,
-      soybean: 4500, groundnut: 5500, potato: 1500, onion: 2000,
-      tomato: 2500, maize: 1800,
-    };
-    const base = basePrices[crop] || 2000;
-    
-    const mandis = [
-      { name: 'Azadpur Mandi', location: 'Delhi' },
-      { name: 'Vashi APMC', location: 'Mumbai' },
-      { name: 'Yeshwanthpur', location: 'Bangalore' },
-      { name: 'Koyambedu', location: 'Chennai' },
-      { name: 'Bowenpally', location: 'Hyderabad' },
-      { name: 'Gultekdi', location: 'Pune' },
-      { name: 'Khanna Mandi', location: 'Punjab' },
-      { name: 'Indore Mandi', location: 'MP' },
-    ];
-
-    return mandis.map(mandi => ({
-      ...mandi,
-      price: Math.round(base + (Math.random() - 0.5) * base * 0.2),
-      change: (Math.random() - 0.5) * 5,
-      arrivals: Math.round(500 + Math.random() * 1500),
-    }));
-  };
+  const stateOptions = useMemo(
+    () => availableStates.slice().sort((a, b) => a.localeCompare(b)),
+    [availableStates]
+  );
 
   const [priceData, setPriceData] = useState([]);
   const [mandiPrices, setMandiPrices] = useState([]);
   const [currentPrice, setCurrentPrice] = useState(null);
 
+  const findExactMatch = (options, value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (!normalized) {
+      return '';
+    }
+    return options.find((option) => option.toLowerCase() === normalized) || '';
+  };
+
   useEffect(() => {
-    setLoading(true);
-    const daysMap = { '1week': 7, '1month': 30, '3month': 90, '6month': 180 };
-    const days = daysMap[timeRange] || 30;
-    
-    setTimeout(() => {
-      const newData = generatePriceData(selectedCrop, days);
-      setPriceData(newData);
-      setMandiPrices(generateMandiPrices(selectedCrop));
-      setCurrentPrice(newData[newData.length - 1]);
-      setLoading(false);
-    }, 500);
-  }, [selectedCrop, selectedState, timeRange]);
+    let isMounted = true;
+
+    const fetchAvailableStates = async () => {
+      setStatesLoading(true);
+      setError('');
+
+      try {
+        const response = await api.get('/market-prices/available-locations', {
+          params: { crop: selectedCrop }
+        });
+
+        if (!isMounted) {
+          return;
+        }
+
+        const payload = response.data?.data || {};
+        const states = Array.isArray(payload.states) ? payload.states : [];
+
+        setAvailableStates(states);
+
+        setSelectedState((prevState) => {
+          if (prevState && states.includes(prevState)) {
+            return prevState;
+          }
+
+          const userState = findExactMatch(states, user?.state);
+          return userState || states[0] || '';
+        });
+      } catch (err) {
+        if (!isMounted) {
+          return;
+        }
+
+        setAvailableStates([]);
+        setSelectedState('');
+        setError(err.response?.data?.message || 'Unable to load available mandi locations for this crop.');
+      } finally {
+        if (isMounted) {
+          setStatesLoading(false);
+        }
+      }
+    };
+
+    fetchAvailableStates();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedCrop, user]);
+
+  useEffect(() => {
+    if (statesLoading) {
+      return;
+    }
+
+    if (!selectedState) {
+      setPriceData([]);
+      setMandiPrices([]);
+      setCurrentPrice(null);
+      if (!availableStates.length && !statesLoading) {
+        setError('No mandi states available for this crop right now.');
+      } else {
+        setError('Please select a state to load mandi prices.');
+      }
+      setLastUpdated('');
+      setConfidence('');
+      return;
+    }
+
+    let isMounted = true;
+
+    const fetchMarketPrices = async () => {
+      setLoading(true);
+      setError('');
+
+      try {
+        const cropName = crops.find((crop) => crop.id === selectedCrop)?.name || selectedCrop;
+        const response = await api.get('/market-prices', {
+          params: {
+            crop: cropName,
+            state: selectedState,
+            timeRange
+          }
+        });
+
+        if (!isMounted) {
+          return;
+        }
+
+        const payload = response.data?.data || {};
+        const trend = Array.isArray(payload.trend) ? payload.trend : [];
+        const mappedTrend = trend.map((point) => {
+          const dateObj = new Date(point.date);
+          const safeDate = Number.isNaN(dateObj.getTime())
+            ? point.date
+            : dateObj.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+          return {
+            date: safeDate,
+            price: Number(point.price) || 0,
+            minPrice: Number(point.minPrice) || Number(point.price) || 0,
+            maxPrice: Number(point.maxPrice) || Number(point.price) || 0
+          };
+        });
+
+        const mandis = Array.isArray(payload.mandis) ? payload.mandis : [];
+        const mappedMandis = mandis.map((item) => ({
+          name: item.mandi,
+          location: `${item.district}, ${item.state}`,
+          price: Number(item.price) || 0,
+          change: Number(item.changePct) || 0,
+          arrivals: Number(item.arrivalsQuintal) || 0,
+          source: item.source || 'N/A',
+          sourceDate: item.sourceDate || ''
+        }));
+
+        setPriceData(mappedTrend);
+        setMandiPrices(mappedMandis);
+        setCurrentPrice(
+          mappedTrend[mappedTrend.length - 1] ||
+          (payload.averagePrice
+            ? { price: Number(payload.averagePrice), minPrice: Number(payload.averagePrice), maxPrice: Number(payload.averagePrice) }
+            : null)
+        );
+        setLastUpdated(payload.lastUpdated || '');
+        setConfidence(payload.confidence || '');
+      } catch (err) {
+        if (!isMounted) {
+          return;
+        }
+
+        setPriceData([]);
+        setMandiPrices([]);
+        setCurrentPrice(null);
+        setLastUpdated('');
+        setConfidence('');
+        setError(err.response?.data?.message || 'Failed to fetch current mandi prices.');
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchMarketPrices();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedCrop, selectedState, timeRange, statesLoading, availableStates.length]);
 
   const selectedCropData = crops.find(c => c.id === selectedCrop);
   
   const priceChange = priceData.length > 1 
     ? ((priceData[priceData.length - 1].price - priceData[0].price) / priceData[0].price * 100).toFixed(2)
     : 0;
+
+  const rangeMin = priceData.length ? Math.min(...priceData.map(d => d.minPrice)) : currentPrice?.minPrice || 0;
+  const rangeMax = priceData.length ? Math.max(...priceData.map(d => d.maxPrice)) : currentPrice?.maxPrice || 0;
 
   const mspPrices = {
     rice: 2203, wheat: 2275, cotton: 6620, sugarcane: 315,
@@ -119,7 +216,7 @@ const MarketPrices = () => {
     <div className="market-prices-container">
       <div className="market-header">
         <h1>📈 Market Prices</h1>
-        <p>Real-time agricultural commodity prices and market trends</p>
+        <p>Live mandi prices for your selected state and crop</p>
       </div>
 
       {/* Filters */}
@@ -142,10 +239,15 @@ const MarketPrices = () => {
 
         <div className="filter-row">
           <div className="filter-item">
-            <label>State/Region</label>
-            <select value={selectedState} onChange={(e) => setSelectedState(e.target.value)}>
-              {states.map(state => (
-                <option key={state.id} value={state.id}>{state.name}</option>
+            <label>State</label>
+            <select
+              value={selectedState}
+              onChange={(e) => setSelectedState(e.target.value)}
+              disabled={statesLoading || !stateOptions.length}
+            >
+              <option value="">{statesLoading ? 'Loading states...' : 'Select state'}</option>
+              {stateOptions.map((state) => (
+                <option key={state} value={state}>{state}</option>
               ))}
             </select>
           </div>
@@ -179,12 +281,14 @@ const MarketPrices = () => {
         </div>
       ) : (
         <>
+          {error && <div className="market-error">{error}</div>}
+
           {/* Price Overview Cards */}
           <div className="price-overview">
             <div className="price-card current">
               <span className="card-label">Current Price</span>
               <span className="card-value">
-                {selectedCropData?.icon} ₹{currentPrice?.price?.toLocaleString()}
+                {selectedCropData?.icon} ₹{currentPrice?.price?.toLocaleString() || 'N/A'}
               </span>
               <span className="card-unit">per {selectedCropData?.unit}</span>
             </div>
@@ -200,7 +304,7 @@ const MarketPrices = () => {
             <div className="price-card range">
               <span className="card-label">Price Range</span>
               <span className="card-value">
-                ₹{Math.min(...priceData.map(d => d.minPrice)).toLocaleString()} - ₹{Math.max(...priceData.map(d => d.maxPrice)).toLocaleString()}
+                ₹{rangeMin.toLocaleString()} - ₹{rangeMax.toLocaleString()}
               </span>
               <span className="card-unit">min - max</span>
             </div>
@@ -230,7 +334,7 @@ const MarketPrices = () => {
                 <Line 
                   type="monotone" 
                   dataKey="price" 
-                  name="Market Price" 
+                  name="Market Price"
                   stroke="#4CAF50" 
                   strokeWidth={3}
                   dot={false}
@@ -260,6 +364,13 @@ const MarketPrices = () => {
           {/* Mandi Prices Table */}
           <div className="mandi-section">
             <h3>🏪 Mandi-wise Prices</h3>
+            {(lastUpdated || confidence) && (
+              <p className="market-meta">
+                {lastUpdated ? `Last update: ${new Date(lastUpdated).toLocaleString('en-IN')}` : ''}
+                {lastUpdated && confidence ? ' | ' : ''}
+                {confidence ? `Confidence: ${confidence}` : ''}
+              </p>
+            )}
             <div className="mandi-table-wrapper">
               <table className="mandi-table">
                 <thead>
@@ -269,6 +380,7 @@ const MarketPrices = () => {
                     <th>Price (₹/{selectedCropData?.unit})</th>
                     <th>Change</th>
                     <th>Arrivals (Quintals)</th>
+                    <th>Source</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -281,31 +393,17 @@ const MarketPrices = () => {
                         {mandi.change >= 0 ? '+' : ''}{mandi.change.toFixed(2)}%
                       </td>
                       <td>{mandi.arrivals.toLocaleString()}</td>
+                      <td>{mandi.sourceDate ? `${mandi.source} (${new Date(mandi.sourceDate).toLocaleDateString('en-IN')})` : mandi.source}</td>
                     </tr>
                   ))}
+                  {!mandiPrices.length && (
+                    <tr>
+                      <td colSpan="6">No mandi records available for this selection.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
-          </div>
-
-          {/* State-wise Comparison */}
-          <div className="comparison-section">
-            <h3>📊 State-wise Price Comparison</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart 
-                data={states.slice(1).map(state => ({
-                  state: state.name,
-                  price: Math.round((priceData[priceData.length - 1]?.price || 2000) * (0.9 + Math.random() * 0.2)),
-                }))}
-                layout="vertical"
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" tickFormatter={(v) => `₹${v}`} />
-                <YAxis dataKey="state" type="category" width={120} />
-                <Tooltip formatter={(value) => [`₹${value}`, 'Price']} />
-                <Bar dataKey="price" fill="#4CAF50" radius={[0, 8, 8, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
           </div>
 
           {/* Market Insights */}
@@ -314,8 +412,12 @@ const MarketPrices = () => {
             <div className="insights-grid">
               <div className="insight-card">
                 <span className="insight-icon">📅</span>
-                <h4>Best Selling Time</h4>
-                <p>Based on historical trends, {selectedCropData?.name} prices are typically highest during {['January', 'February', 'March'][Math.floor(Math.random() * 3)]}-{['April', 'May', 'June'][Math.floor(Math.random() * 3)]}.</p>
+                <h4>Current Trend</h4>
+                <p>
+                  {parseFloat(priceChange) < 0
+                    ? `${selectedCropData?.name} prices are trending downward in ${selectedState || 'your state'}.`
+                    : `${selectedCropData?.name} prices are trending upward in ${selectedState || 'your state'}.`}
+                </p>
               </div>
               <div className="insight-card">
                 <span className="insight-icon">📦</span>
@@ -326,8 +428,8 @@ const MarketPrices = () => {
               </div>
               <div className="insight-card">
                 <span className="insight-icon">🚛</span>
-                <h4>Transport Cost</h4>
-                <p>Average transport cost to nearby mandi: ₹50-100 per quintal. Factor this into your selling decision.</p>
+                <h4>State Mandi Focus</h4>
+                <p>Mandis from {selectedState || 'the selected state'} are shown so you can compare active markets with real reported prices.</p>
               </div>
               <div className="insight-card">
                 <span className="insight-icon">📱</span>

@@ -9,6 +9,7 @@ import Dashboard from './components/pages/Dashboard';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import RecommendationHistory from './components/pages/RecommendationHistory';
+import TermsOfService from './components/pages/TermsOfService';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const queryClient = new QueryClient({
@@ -39,8 +40,12 @@ function App() {
           <div className="App">
             <Navbar />
             <Routes>
+              {/* Public Routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/terms-of-service" element={<TermsOfService />} />
+              
+              {/* Protected Routes */}
               <Route
                 path="/"
                 element={
@@ -57,6 +62,9 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              
+              {/* Catch-all - redirect to home */}
+              <Route path="*" element={<Navigate to="/" />} />
             </Routes>
             <ToastContainer position="top-right" autoClose={3000} />
           </div>
@@ -67,5 +75,3 @@ function App() {
 }
 
 export default App;
-
-

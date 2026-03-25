@@ -1,12 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const Recommendation = require('../models/Recommendation');
 
 // Your existing controllers
 const {
   getRecommendations,
   getRecommendationHistory,
-  getRecommendation
+  getRecommendation,
+  selectCrop,
+  removeSelectedCrop
 } = require('../controllers/recommendationController');
 
 const { protect } = require('../middleware/auth');
@@ -19,7 +22,10 @@ router.use(protect);
 // -------------------------------
 router.post('/', getRecommendations);
 router.get('/', getRecommendationHistory);
+router.get('/history', getRecommendationHistory);  // Alias for Analytics page
 router.get('/:id', getRecommendation);
+router.put('/:id/select-crop', selectCrop);
+router.delete('/:id/select-crop', removeSelectedCrop);
 
 // -------------------------------
 // 2️⃣ NEW ML ROUTE (Fixed 404 + Fixed 422)
@@ -64,10 +70,35 @@ router.post('/generate', async (req, res) => {
 
     // Send request to FastAPI ML service
     const response = await axios.post(`${ML_URL}/predict`, mlPayload);
+    const mlData = response.data;
+
+    // Save recommendation to database
+    const savedRecommendation = await Recommendation.create({
+      user: req.user.id,
+      location: {
+        state: body.state,
+        district: body.district
+      },
+      season: body.season,
+      recommendations: mlData.recommendations?.map(rec => ({
+        cropName: rec.cropName,
+        suitabilityScore: rec.suitabilityScore,
+        yieldPrediction: rec.yieldPrediction,
+        explanation: rec.explanation,
+        environmentalFactors: rec.environmentalFactors
+      })) || [],
+      environmentalSnapshot: mlData.environmentalSnapshot || {
+        soil: mlPayload.soil,
+        weather: mlPayload.weather
+      }
+    });
+
+    console.log("✅ Recommendation saved with ID:", savedRecommendation._id);
 
     return res.json({
       success: true,
-      data: response.data
+      data: mlData,
+      savedId: savedRecommendation._id
     });
 
   } catch (err) {

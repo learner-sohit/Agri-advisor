@@ -12,16 +12,23 @@ const recommendationSchema = new mongoose.Schema({
   },
   season: {
     type: String,
-    enum: ['Kharif', 'Rabi', 'Zaid'],
+    enum: ['Kharif', 'Rabi', 'Summer', 'Winter', 'Autumn', 'Whole Year'],
     required: true
+  },
+  selectedCrop: {
+    cropName: String,
+    selectedAt: Date,
+    notes: String
   },
   recommendations: [{
     crop: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Crop',
+      ref: 'Crop'
+    },
+    cropName: {
+      type: String,
       required: true
     },
-    cropName: String,
     suitabilityScore: {
       type: Number,
       min: 0,

@@ -275,4 +275,82 @@ exports.getRecommendation = async (req, res, next) => {
   }
 };
 
+// @desc    Select a crop from recommendation
+// @route   PUT /api/recommendations/:id/select-crop
+// @access  Private
+exports.selectCrop = async (req, res) => {
+  try {
+    const { cropName, notes } = req.body;
+
+    if (!cropName) {
+      return res.status(400).json({ message: 'Crop name is required' });
+    }
+
+    const recommendation = await Recommendation.findById(req.params.id);
+
+    if (!recommendation) {
+      return res.status(404).json({ message: 'Recommendation not found' });
+    }
+
+    // Check if user owns this recommendation
+    if (recommendation.user.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    // Verify the crop exists in recommendations
+    const cropExists = recommendation.recommendations.some(
+      rec => rec.cropName === cropName
+    );
+
+    if (!cropExists) {
+      return res.status(400).json({ message: 'Crop not found in recommendations' });
+    }
+
+    // Update selected crop
+    recommendation.selectedCrop = {
+      cropName,
+      selectedAt: new Date(),
+      notes: notes || ''
+    };
+
+    await recommendation.save();
+
+    res.json({
+      success: true,
+      message: 'Crop selected successfully',
+      selectedCrop: recommendation.selectedCrop
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Remove selected crop
+// @route   DELETE /api/recommendations/:id/select-crop
+// @access  Private
+exports.removeSelectedCrop = async (req, res) => {
+  try {
+    const recommendation = await Recommendation.findById(req.params.id);
+
+    if (!recommendation) {
+      return res.status(404).json({ message: 'Recommendation not found' });
+    }
+
+    // Check if user owns this recommendation
+    if (recommendation.user.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    recommendation.selectedCrop = undefined;
+    await recommendation.save();
+
+    res.json({
+      success: true,
+      message: 'Selection removed successfully'
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 

@@ -56,7 +56,6 @@ export const AuthProvider = ({ children }) => {
       setToken(newToken);
       setUser(user);
       axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-      toast.success('Login successful!');
       return { success: true };
     } catch (error) {
       toast.error(error.response?.data?.message || 'Login failed');
@@ -73,7 +72,6 @@ export const AuthProvider = ({ children }) => {
       setToken(newToken);
       setUser(user);
       axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-      toast.success('Registration successful!');
       return { success: true };
     } catch (error) {
       toast.error(error.response?.data?.message || 'Registration failed');

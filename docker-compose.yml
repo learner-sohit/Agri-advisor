@@ -26,6 +26,7 @@ services:
       MONGODB_URI: mongodb://admin:password@mongodb:27017/agri-advisor?authSource=admin
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
       ML_SERVICE_URL: http://ml-service:8000
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
     depends_on:
       - mongodb
       - ml-service

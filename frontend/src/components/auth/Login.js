@@ -7,7 +7,7 @@ import './Auth.css';
 
 const Login = () => {
   const { t } = useTranslation();
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({
@@ -21,6 +21,13 @@ const Login = () => {
   useEffect(() => {
     setIsVisible(true);
   }, []);
+
+  // Redirect if user is already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   const validateForm = () => {
     if (!formData.email) {
@@ -55,16 +62,30 @@ const Login = () => {
     if (!validateForm()) return;
 
     setLoading(true);
+    
+    // Show redirecting toast immediately when spinner starts
+    const toastId = toast.info('Redirecting...', { autoClose: false });
+    
     try {
+      // Add delay for loading spinner effect
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
       const result = await login(formData.email, formData.password);
       
       if (result.success) {
-        toast.success('Login successful! Redirecting...');
-        setTimeout(() => navigate('/'), 1000);
+        // Dismiss redirecting toast and navigate
+        toast.dismiss(toastId);
+        navigate('/dashboard');
+        // Show success toast after landing on dashboard
+        setTimeout(() => {
+          toast.success('Login successful!');
+        }, 100);
       } else {
+        toast.dismiss(toastId);
         toast.error(result.message || 'Login failed. Please check your credentials.');
       }
     } catch (error) {
+      toast.dismiss(toastId);
       toast.error('An error occurred. Please try again.');
     } finally {
       setLoading(false);
@@ -156,7 +177,7 @@ const Login = () => {
               <input type="checkbox" className="checkbox-input" />
               <span>{t('remember_me')}</span>
             </label>
-            <a href="/forgot-password" className="forgot-link">{t('forgot_password')}</a>
+            <Link to="/forgot-password" className="forgot-link">{t('forgot_password')}</Link>
           </div>
 
           {/* Submit Button */}

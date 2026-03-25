@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify'; // Use react-toastify
+import indiaStatesDistricts from '../../data/indiaStatesDistricts.json';
 import './Auth.css';
+
+const API_HOST = (process.env.REACT_APP_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 const Register = () => {
   const { t } = useTranslation();
@@ -23,6 +26,47 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [selectedState, setSelectedState] = useState('');
+  const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false);
+  const [isDistrictDropdownOpen, setIsDistrictDropdownOpen] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
+
+  const stateDropdownRef = useRef(null);
+  const districtDropdownRef = useRef(null);
+
+  const stateOptions = useMemo(
+    () => Object.keys(indiaStatesDistricts).sort((a, b) => a.localeCompare(b)),
+    []
+  );
+
+  const filteredStateOptions = useMemo(() => {
+    const query = formData.state.trim().toLowerCase();
+    if (!query) {
+      return stateOptions;
+    }
+
+    return stateOptions.filter((stateName) =>
+      stateName.toLowerCase().includes(query)
+    );
+  }, [formData.state, stateOptions]);
+
+  const selectedStateDistricts = useMemo(() => {
+    if (!selectedState) {
+      return [];
+    }
+    return indiaStatesDistricts[selectedState] || [];
+  }, [selectedState]);
+
+  const filteredDistrictOptions = useMemo(() => {
+    const query = formData.district.trim().toLowerCase();
+    if (!query) {
+      return selectedStateDistricts;
+    }
+
+    return selectedStateDistricts.filter((districtName) =>
+      districtName.toLowerCase().includes(query)
+    );
+  }, [formData.district, selectedStateDistricts]);
 
   useEffect(() => {
     setIsVisible(true);
@@ -31,9 +75,23 @@ const Register = () => {
   // Redirect if user is already logged in
   useEffect(() => {
     if (user) {
-      navigate('/');
+      navigate('/dashboard');
     }
   }, [user, navigate]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (stateDropdownRef.current && !stateDropdownRef.current.contains(event.target)) {
+        setIsStateDropdownOpen(false);
+      }
+      if (districtDropdownRef.current && !districtDropdownRef.current.contains(event.target)) {
+        setIsDistrictDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   const validateStep1 = () => {
     // Check if name is empty
@@ -77,6 +135,226 @@ const Register = () => {
     }));
   };
 
+  const getExactStateMatch = (stateName) => {
+    const normalized = stateName.trim().toLowerCase();
+    if (!normalized) {
+      return '';
+    }
+
+    return stateOptions.find((option) => option.toLowerCase() === normalized) || '';
+  };
+
+  const normalizeLocationName = (value) =>
+    value
+      .toLowerCase()
+      .replace(/[.,'()/-]/g, ' ')
+      .replace(/\b(district|division|state|union territory|ut)\b/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const stateAliasMap = {
+    'nct of delhi': 'Delhi',
+    'national capital territory of delhi': 'Delhi',
+    orissa: 'Odisha',
+    pondicherry: 'Puducherry',
+    'jammu kashmir': 'Jammu and Kashmir',
+    'dadra and nagar haveli and daman diu': 'Dadra and Nagar Haveli and Daman and Diu',
+    'dadra and nagar haveli daman and diu': 'Dadra and Nagar Haveli and Daman and Diu'
+  };
+
+  const findBestStateMatch = (rawStateName) => {
+    if (!rawStateName) {
+      return '';
+    }
+
+    const normalized = normalizeLocationName(rawStateName);
+    if (!normalized) {
+      return '';
+    }
+
+    const aliasMatch = stateAliasMap[normalized];
+    if (aliasMatch && stateOptions.includes(aliasMatch)) {
+      return aliasMatch;
+    }
+
+    const exactNormalizedMatch = stateOptions.find(
+      (option) => normalizeLocationName(option) === normalized
+    );
+    if (exactNormalizedMatch) {
+      return exactNormalizedMatch;
+    }
+
+    return (
+      stateOptions.find((option) => {
+        const normalizedOption = normalizeLocationName(option);
+        return normalizedOption.includes(normalized) || normalized.includes(normalizedOption);
+      }) || ''
+    );
+  };
+
+  const findBestDistrictMatch = (rawDistrictName, districts) => {
+    if (!rawDistrictName || !districts.length) {
+      return '';
+    }
+
+    const normalized = normalizeLocationName(rawDistrictName);
+    if (!normalized) {
+      return '';
+    }
+
+    const exactNormalizedMatch = districts.find(
+      (district) => normalizeLocationName(district) === normalized
+    );
+    if (exactNormalizedMatch) {
+      return exactNormalizedMatch;
+    }
+
+    return (
+      districts.find((district) => {
+        const normalizedDistrict = normalizeLocationName(district);
+        return normalizedDistrict.includes(normalized) || normalized.includes(normalizedDistrict);
+      }) || ''
+    );
+  };
+
+  const handleStateInputChange = (e) => {
+    const { value } = e.target;
+    const matchedState = getExactStateMatch(value);
+
+    setFormData((prev) => ({
+      ...prev,
+      state: value,
+      district: ''
+    }));
+
+    setSelectedState(matchedState);
+    setIsStateDropdownOpen(true);
+    setIsDistrictDropdownOpen(false);
+  };
+
+  const handleStateSelect = (stateName) => {
+    setFormData((prev) => ({
+      ...prev,
+      state: stateName,
+      district: ''
+    }));
+    setSelectedState(stateName);
+    setIsStateDropdownOpen(false);
+    setIsDistrictDropdownOpen(false);
+  };
+
+  const handleDistrictInputChange = (e) => {
+    const { value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      district: value
+    }));
+
+    if (selectedState) {
+      setIsDistrictDropdownOpen(true);
+    }
+  };
+
+  const handleDistrictSelect = (districtName) => {
+    setFormData((prev) => ({
+      ...prev,
+      district: districtName
+    }));
+    setIsDistrictDropdownOpen(false);
+  };
+
+  const getCurrentPosition = () =>
+    new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: false,
+        timeout: 10000,
+        maximumAge: 5 * 60 * 1000
+      });
+    });
+
+  const handleUseCurrentLocation = async () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported in this browser.');
+      return;
+    }
+
+    setGeoLoading(true);
+    setIsStateDropdownOpen(false);
+    setIsDistrictDropdownOpen(false);
+
+    try {
+      const position = await getCurrentPosition();
+      const { latitude, longitude } = position.coords;
+
+      const response = await fetch(
+        `${API_HOST}/api/auth/reverse-geocode?latitude=${latitude}&longitude=${longitude}`
+      );
+
+      if (!response.ok) {
+        throw new Error('reverse-geocode-failed');
+      }
+
+      const geoData = await response.json();
+      const administrative = Array.isArray(geoData?.localityInfo?.administrative)
+        ? geoData.localityInfo.administrative
+        : [];
+
+      const rawState =
+        geoData?.principalSubdivision ||
+        administrative.find((entry) => {
+          const text = `${entry?.name || ''} ${entry?.description || ''}`.toLowerCase();
+          return /state|union territory|territory/.test(text);
+        })?.name ||
+        '';
+
+      const matchedState = findBestStateMatch(rawState);
+      if (!matchedState) {
+        toast.error('Could not map your location to a supported state. Please select manually.');
+        return;
+      }
+
+      const districtCandidateFromAdmin = administrative.find((entry) => {
+        const text = `${entry?.name || ''} ${entry?.description || ''}`.toLowerCase();
+        return /district/.test(text);
+      })?.name;
+
+      const rawDistrict =
+        districtCandidateFromAdmin ||
+        geoData?.locality ||
+        geoData?.city ||
+        geoData?.localityName ||
+        '';
+
+      const stateDistricts = indiaStatesDistricts[matchedState] || [];
+      const matchedDistrict = findBestDistrictMatch(rawDistrict, stateDistricts);
+
+      setSelectedState(matchedState);
+      setFormData((prev) => ({
+        ...prev,
+        state: matchedState,
+        district: matchedDistrict || ''
+      }));
+
+      if (matchedDistrict) {
+        toast.success('Location detected successfully. State and district were auto-filled.');
+      } else {
+        toast.info('State detected successfully. Please select your district.');
+      }
+    } catch (error) {
+      if (error?.code === 1) {
+        toast.error('Location access was denied. Please allow permission or fill manually.');
+      } else if (error?.code === 2) {
+        toast.error('Could not determine your location. Please try again.');
+      } else if (error?.code === 3) {
+        toast.error('Location request timed out. Please try again.');
+      } else {
+        toast.error('Unable to auto-detect location right now. Please fill manually.');
+      }
+    } finally {
+      setGeoLoading(false);
+    }
+  };
+
   const handleNext = () => {
     if (validateStep1()) {
       setCurrentStep(2);
@@ -94,11 +372,14 @@ const Register = () => {
     
     setLoading(true);
     try {
+      // Add delay for loading spinner effect
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
       const result = await register(formData);
       
       if (result.success) {
         toast.success('Registration successful! Welcome aboard!');
-        setTimeout(() => navigate('/'), 1000);
+        setTimeout(() => navigate('/dashboard'), 1000);
       } else {
         toast.error(result.message || 'Registration failed. Please try again.');
       }
@@ -222,6 +503,15 @@ const Register = () => {
 
           {/* Step 2: Location & Preferences */}
           <div className={`form-step ${currentStep === 2 ? 'active' : ''}`}>
+            <button
+              type="button"
+              className="btn-location"
+              onClick={handleUseCurrentLocation}
+              disabled={geoLoading}
+            >
+              {geoLoading ? 'Detecting location...' : 'Use Current Location'}
+            </button>
+
             <div className="form-group">
               <label htmlFor="phone" className="form-label">Phone</label>
               <div className="input-wrapper">
@@ -242,7 +532,7 @@ const Register = () => {
 
             <div className="form-group">
               <label htmlFor="state" className="form-label">{t('state')}</label>
-              <div className="input-wrapper">
+              <div className="input-wrapper dropdown-wrapper" ref={stateDropdownRef}>
                 <svg className="input-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                   <circle cx="12" cy="10" r="3"></circle>
@@ -252,16 +542,44 @@ const Register = () => {
                   type="text"
                   name="state"
                   value={formData.state}
-                  onChange={handleChange}
+                  onChange={handleStateInputChange}
+                  onFocus={() => setIsStateDropdownOpen(true)}
                   className="form-input"
+                  autoComplete="address-level1"
                   placeholder="e.g., Uttar Pradesh"
                 />
+                <button
+                  type="button"
+                  className="auth-dropdown-toggle"
+                  onClick={() => setIsStateDropdownOpen((prev) => !prev)}
+                  aria-label="Toggle state options"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                {isStateDropdownOpen && filteredStateOptions.length > 0 && (
+                  <ul className="search-dropdown" role="listbox" aria-label="State options">
+                    {filteredStateOptions.map((stateName) => (
+                      <li
+                        key={stateName}
+                        className="search-dropdown-item"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleStateSelect(stateName)}
+                        role="option"
+                        aria-selected={formData.state === stateName}
+                      >
+                        {stateName}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
 
             <div className="form-group">
               <label htmlFor="district" className="form-label">{t('district')}</label>
-              <div className="input-wrapper">
+              <div className="input-wrapper dropdown-wrapper" ref={districtDropdownRef}>
                 <svg className="input-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="11" cy="11" r="8"></circle>
                   <path d="M21 21l-4.35-4.35"></path>
@@ -271,10 +589,40 @@ const Register = () => {
                   type="text"
                   name="district"
                   value={formData.district}
-                  onChange={handleChange}
+                  onChange={handleDistrictInputChange}
+                  onFocus={() => selectedState && setIsDistrictDropdownOpen(true)}
                   className="form-input"
-                  placeholder="e.g., Ghaziabad"
+                  disabled={!selectedState}
+                  autoComplete="address-level2"
+                  placeholder={selectedState ? 'Select District' : 'Select state first'}
                 />
+                <button
+                  type="button"
+                  className="auth-dropdown-toggle"
+                  onClick={() => selectedState && setIsDistrictDropdownOpen((prev) => !prev)}
+                  aria-label="Toggle district options"
+                  disabled={!selectedState}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                {isDistrictDropdownOpen && filteredDistrictOptions.length > 0 && (
+                  <ul className="search-dropdown" role="listbox" aria-label="District options">
+                    {filteredDistrictOptions.map((districtName) => (
+                      <li
+                        key={districtName}
+                        className="search-dropdown-item"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleDistrictSelect(districtName)}
+                        role="option"
+                        aria-selected={formData.district === districtName}
+                      >
+                        {districtName}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
 

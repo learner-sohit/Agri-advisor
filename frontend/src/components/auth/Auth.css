@@ -351,6 +351,13 @@ body {
   box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
 }
 
+.form-input:disabled {
+  background: var(--gray-100);
+  border-color: var(--gray-200);
+  color: var(--gray-400);
+  cursor: not-allowed;
+}
+
 .form-input.input-error {
   border-color: var(--error-color);
   background: var(--error-light);
@@ -391,6 +398,70 @@ body {
   background-position: right 0.85rem center;
   background-size: 1.25rem;
   box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.dropdown-wrapper {
+  position: relative;
+}
+
+.auth-dropdown-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--gray-400);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0.35rem;
+  border-radius: 8px;
+  transition: var(--transition-base);
+  z-index: 2;
+}
+
+.auth-dropdown-toggle:hover:not(:disabled) {
+  color: var(--gray-600);
+  background: var(--gray-100);
+}
+
+.auth-dropdown-toggle:disabled {
+  cursor: not-allowed;
+  color: var(--gray-300);
+}
+
+.search-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  max-height: 210px;
+  overflow-y: auto;
+  z-index: 30;
+  animation: slideInDown 0.2s ease;
+}
+
+.search-dropdown-item {
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  color: var(--gray-700);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.search-dropdown-item:hover {
+  background: rgba(52, 152, 219, 0.1);
+  color: var(--primary-dark);
 }
 
 /* ========================================
@@ -537,6 +608,29 @@ body {
   opacity: 0.6;
   cursor: not-allowed;
   background: var(--gray-400);
+}
+
+.btn-location {
+  width: 100%;
+  border: 1px dashed var(--primary-light);
+  background: rgba(52, 152, 219, 0.08);
+  color: var(--primary-dark);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.btn-location:hover:not(:disabled) {
+  background: rgba(52, 152, 219, 0.14);
+  border-color: var(--primary-color);
+}
+
+.btn-location:disabled {
+  opacity: 0.7;
+  cursor: wait;
 }
 
 .btn-secondary {
@@ -812,4 +906,45 @@ body {
 .auth-link:focus-visible {
   outline: 2px solid var(--primary-color);
   outline-offset: 2px;
+}
+
+/* ========================================
+   SUCCESS MESSAGE (Forgot/Reset Password)
+   ======================================== */
+.success-message-container {
+  text-align: center;
+  padding: 1rem 0;
+  animation: fadeIn 0.5s ease;
+}
+
+.success-icon {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, var(--success-color), #2ecc71);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+  color: var(--white);
+  box-shadow: 0 4px 20px rgba(39, 174, 96, 0.3);
+  animation: pulse 2s infinite;
+}
+
+.success-text {
+  font-size: 1rem;
+  color: var(--gray-700);
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+
+.success-text strong {
+  color: var(--primary-color);
+}
+
+.success-subtext {
+  font-size: 0.9rem;
+  color: var(--gray-600);
+  line-height: 1.6;
 }

@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+package-lock.json
 __pycache__/
 *.pyc
 *.pyo
@@ -8,3 +9,49 @@ __pycache__/
 venv/
 env/
 ENV/
+
+# Environment files
+.env
+.env.*
+.env.local
+.env.local*
+backend/.env
+data-scripts/.env
+frontend/.env.local
+ml-service/.env
+
+# Build output
+frontend/build/
+dist/
+build/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Trained ML models (too large for GitHub)
+ml-service/app/models/trained/*.pkl
+ml-service/app/models/trained/*.npy
+ml-service/app/models/trained/env_profiles_v2.json
+
+# Optional: other large ML artifacts
+ml-service/app/data/*.npy
+ml-service/app/data/*.pkl
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Docker
+*.pid

@@ -454,6 +454,77 @@
   font-style: italic;
 }
 
+/* View Details Button */
+.view-details-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+  color: white;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-top: 1.25rem;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.view-details-btn:hover {
+  background: linear-gradient(135deg, #219a52 0%, #27ae60 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4);
+}
+
+.history-item {
+  cursor: pointer;
+}
+
+/* Selected Crop Banner */
+.selected-crop-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1.25rem;
+  background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+  border: 2px solid #27ae60;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+
+.selected-crop-icon {
+  width: 36px;
+  height: 36px;
+  background: #27ae60;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+}
+
+.selected-crop-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.selected-label {
+  font-size: 0.75rem;
+  color: #155724;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.selected-crop-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #155724;
+}
+
 /* ========================================
    ANIMATIONS
    ======================================== */

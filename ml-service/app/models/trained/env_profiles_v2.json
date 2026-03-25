@@ -1,0 +1,122 @@
+{
+  "CEREALS_MAIZE": {
+    "temp_min": 20.18,
+    "temp_max": 40.0,
+    "temp_mean": 30.324156706507303,
+    "humidity_min": 40.33,
+    "humidity_max": 79.62,
+    "humidity_mean": 59.005949535192556,
+    "moisture_mean": 44.52634794156707,
+    "nitrogen_mean": 18.90305444887118,
+    "potassium_mean": 4.138114209827357,
+    "phosphorus_mean": 17.784860557768923
+  },
+  "SUGARCANE": {
+    "temp_min": 20.03,
+    "temp_max": 40.0,
+    "temp_mean": 30.48503276539974,
+    "humidity_min": 40.23,
+    "humidity_max": 80.0,
+    "humidity_mean": 59.36010484927915,
+    "moisture_mean": 43.548938401048495,
+    "nitrogen_mean": 18.764089121887288,
+    "potassium_mean": 3.657929226736566,
+    "phosphorus_mean": 18.466579292267365
+  },
+  "COTTON": {
+    "temp_min": 20.27,
+    "temp_max": 40.0,
+    "temp_mean": 30.34890581717452,
+    "humidity_min": 40.79,
+    "humidity_max": 80.0,
+    "humidity_mean": 58.66772853185596,
+    "moisture_mean": 43.64898891966759,
+    "nitrogen_mean": 17.984764542936286,
+    "potassium_mean": 3.8781163434903045,
+    "phosphorus_mean": 19.0
+  },
+  "TOBACCO": {
+    "temp_min": 20.18,
+    "temp_max": 40.0,
+    "temp_mean": 30.138661087866108,
+    "humidity_min": 40.37,
+    "humidity_max": 80.0,
+    "humidity_mean": 59.26670850767084,
+    "moisture_mean": 44.25958158995816,
+    "nitrogen_mean": 18.605299860529986,
+    "potassium_mean": 3.8354253835425385,
+    "phosphorus_mean": 18.708507670850768
+  },
+  "CEREALS_RICE": {
+    "temp_min": 20.41,
+    "temp_max": 40.0,
+    "temp_mean": 30.328923512747878,
+    "humidity_min": 40.7,
+    "humidity_max": 80.0,
+    "humidity_mean": 59.35657223796035,
+    "moisture_mean": 42.95168555240793,
+    "nitrogen_mean": 18.518413597733712,
+    "potassium_mean": 3.8626062322946177,
+    "phosphorus_mean": 18.745042492917847
+  },
+  "CEREALS_BARLEY": {
+    "temp_min": 20.0,
+    "temp_max": 40.0,
+    "temp_mean": 30.19800853485064,
+    "humidity_min": 40.88,
+    "humidity_max": 80.0,
+    "humidity_mean": 59.23093883357042,
+    "moisture_mean": 43.483513513513515,
+    "nitrogen_mean": 17.870554765291608,
+    "potassium_mean": 3.9601706970128023,
+    "phosphorus_mean": 19.028449502133714
+  },
+  "CEREALS_WHEAT": {
+    "temp_min": 20.55,
+    "temp_max": 40.0,
+    "temp_mean": 30.590334672021417,
+    "humidity_min": 40.17,
+    "humidity_max": 78.41,
+    "humidity_mean": 60.132289156626506,
+    "moisture_mean": 43.424524765729586,
+    "nitrogen_mean": 18.06024096385542,
+    "potassium_mean": 3.825970548862115,
+    "phosphorus_mean": 18.9665327978581
+  },
+  "CEREALS_MILLETS": {
+    "temp_min": 20.26,
+    "temp_max": 40.0,
+    "temp_mean": 30.28771587743733,
+    "humidity_min": 40.17,
+    "humidity_max": 79.96,
+    "humidity_mean": 58.766392757660164,
+    "moisture_mean": 43.79281337047353,
+    "nitrogen_mean": 19.171309192200557,
+    "potassium_mean": 3.479108635097493,
+    "phosphorus_mean": 17.83426183844011
+  },
+  "OILSEEDS": {
+    "temp_min": 20.14,
+    "temp_max": 40.0,
+    "temp_mean": 30.471188524590165,
+    "humidity_min": 40.44,
+    "humidity_max": 79.52,
+    "humidity_mean": 59.42953551912568,
+    "moisture_mean": 42.85225409836065,
+    "nitrogen_mean": 18.314207650273225,
+    "potassium_mean": 4.248633879781421,
+    "phosphorus_mean": 18.4672131147541
+  },
+  "PULSES": {
+    "temp_min": 20.09,
+    "temp_max": 40.0,
+    "temp_mean": 30.198104395604396,
+    "humidity_min": 40.02,
+    "humidity_max": 80.0,
+    "humidity_mean": 59.09331043956044,
+    "moisture_mean": 43.01611263736264,
+    "nitrogen_mean": 18.08653846153846,
+    "potassium_mean": 3.927197802197802,
+    "phosphorus_mean": 18.906593406593405
+  }
+}

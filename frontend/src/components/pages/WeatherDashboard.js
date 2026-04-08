@@ -1,26 +1,20 @@
+
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import './WeatherDashboard.css';
+import indiaStatesDistricts from '../../data/indiaStatesDistricts.json';
 
 const WeatherDashboard = () => {
-  const [selectedLocation, setSelectedLocation] = useState('');
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedDistrict, setSelectedDistrict] = useState('');
   const [weatherData, setWeatherData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [forecastDays, setForecastDays] = useState(7);
 
-  // Sample locations
-  const locations = [
-    { value: 'punjab', label: 'Punjab', lat: 31.1471, lon: 75.3412 },
-    { value: 'maharashtra', label: 'Maharashtra', lat: 19.7515, lon: 75.7139 },
-    { value: 'karnataka', label: 'Karnataka', lat: 15.3173, lon: 75.7139 },
-    { value: 'uttar-pradesh', label: 'Uttar Pradesh', lat: 26.8467, lon: 80.9462 },
-    { value: 'tamil-nadu', label: 'Tamil Nadu', lat: 11.1271, lon: 78.6569 },
-    { value: 'gujarat', label: 'Gujarat', lat: 22.2587, lon: 71.1924 },
-    { value: 'rajasthan', label: 'Rajasthan', lat: 27.0238, lon: 74.2179 },
-    { value: 'madhya-pradesh', label: 'Madhya Pradesh', lat: 22.9734, lon: 78.6569 },
-    { value: 'west-bengal', label: 'West Bengal', lat: 22.9868, lon: 87.8550 },
-    { value: 'andhra-pradesh', label: 'Andhra Pradesh', lat: 15.9129, lon: 79.7400 },
-  ];
+  // Get all states
+  const states = Object.keys(indiaStatesDistricts);
+  // Get districts for selected state
+  const districts = selectedState ? indiaStatesDistricts[selectedState] : [];
 
   // Sample weather data generator
   const generateWeatherData = (days) => {
@@ -64,7 +58,7 @@ const WeatherDashboard = () => {
   });
 
   useEffect(() => {
-    if (selectedLocation) {
+    if (selectedState && selectedDistrict) {
       setLoading(true);
       // Simulate API call
       setTimeout(() => {
@@ -85,7 +79,7 @@ const WeatherDashboard = () => {
         setLoading(false);
       }, 1000);
     }
-  }, [selectedLocation, forecastDays]);
+  }, [selectedState, selectedDistrict, forecastDays]);
 
   const getConditionIcon = (condition) => {
     const icons = {
@@ -134,23 +128,38 @@ const WeatherDashboard = () => {
       {/* Location Selector */}
       <div className="location-selector">
         <div className="selector-card">
-          <label>Select Your Location</label>
-          <select 
-            value={selectedLocation} 
-            onChange={(e) => setSelectedLocation(e.target.value)}
+          <label>Select State</label>
+          <select
+            value={selectedState}
+            onChange={e => {
+              setSelectedState(e.target.value);
+              setSelectedDistrict('');
+            }}
           >
             <option value="">Choose a state...</option>
-            {locations.map(loc => (
-              <option key={loc.value} value={loc.value}>{loc.label}</option>
+            {states.map(state => (
+              <option key={state} value={state}>{state}</option>
             ))}
           </select>
         </div>
-
+        <div className="selector-card">
+          <label>Select District</label>
+          <select
+            value={selectedDistrict}
+            onChange={e => setSelectedDistrict(e.target.value)}
+            disabled={!selectedState}
+          >
+            <option value="">{selectedState ? 'Choose a district...' : 'Select state first'}</option>
+            {districts.map(district => (
+              <option key={district} value={district}>{district}</option>
+            ))}
+          </select>
+        </div>
         <div className="selector-card">
           <label>Forecast Period</label>
           <div className="period-buttons">
             {[7, 14, 30].map(days => (
-              <button 
+              <button
                 key={days}
                 className={forecastDays === days ? 'active' : ''}
                 onClick={() => setForecastDays(days)}
@@ -169,7 +178,7 @@ const WeatherDashboard = () => {
         </div>
       )}
 
-      {!loading && selectedLocation && weatherData && (
+      {!loading && selectedState && selectedDistrict && weatherData && (
         <>
           {/* Current Weather Card */}
           <div className="current-weather-card">
@@ -183,7 +192,7 @@ const WeatherDashboard = () => {
               </div>
               <div className="condition-text">
                 <h3>{currentWeather.condition}</h3>
-                <p>{locations.find(l => l.value === selectedLocation)?.label}</p>
+                <p>{selectedDistrict}, {selectedState}</p>
               </div>
             </div>
             
@@ -369,11 +378,11 @@ const WeatherDashboard = () => {
         </>
       )}
 
-      {!selectedLocation && (
+      {!(selectedState && selectedDistrict) && (
         <div className="empty-state">
           <span className="empty-icon">📍</span>
           <h3>Select a Location</h3>
-          <p>Choose your state to view weather information and agricultural insights</p>
+          <p>Choose your state and district to view weather information and agricultural insights</p>
         </div>
       )}
     </div>

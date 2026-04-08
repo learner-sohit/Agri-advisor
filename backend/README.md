@@ -72,6 +72,9 @@ npm start
 - `GET /api/locations/states` - Get all states
 - `GET /api/locations/districts/:state` - Get districts by state
 
+### Market Prices
+- `GET /api/market-prices?crop=Rice&state=Punjab&district=Ludhiana&timeRange=1month` - Get current district mandi prices via Gemini (Protected)
+
 ## Environment Variables
 
 ```
@@ -82,6 +85,7 @@ JWT_SECRET=your-secret-key
 JWT_EXPIRE=7d
 ML_SERVICE_URL=http://localhost:8000
 CORS_ORIGIN=http://localhost:3000
+GEMINI_API_KEY=your-gemini-api-key
 ```
 
 ## Testing

@@ -2,6 +2,7 @@ const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const axios = require('axios');
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -203,6 +204,43 @@ exports.resetPassword = async (req, res, next) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Reverse geocode coordinates
+// @route   GET /api/auth/reverse-geocode
+// @access  Public
+exports.reverseGeocode = async (req, res) => {
+  try {
+    const latitude = Number(req.query.latitude);
+    const longitude = Number(req.query.longitude);
+
+    if (
+      Number.isNaN(latitude) ||
+      Number.isNaN(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      return res.status(400).json({ message: 'Invalid latitude or longitude' });
+    }
+
+    const response = await axios.get('https://api.bigdatacloud.net/data/reverse-geocode-client', {
+      params: {
+        latitude,
+        longitude,
+        localityLanguage: 'en'
+      },
+      timeout: 10000
+    });
+
+    res.json(response.data);
+  } catch (error) {
+    const status = error.response?.status || 502;
+    res.status(status).json({
+      message: 'Failed to reverse geocode location'
+    });
   }
 };
 

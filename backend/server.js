@@ -30,6 +30,7 @@ app.use('/api/crops', require('./routes/crops'));
 app.use('/api/recommendations', require('./routes/recommendations'));
 app.use('/api/agro-data', require('./routes/agroData'));
 app.use('/api/locations', require('./routes/locations'));
+app.use('/api/market-prices', require('./routes/marketPrices'));
 
 // Health check
 app.get('/api/health', (req, res) => {

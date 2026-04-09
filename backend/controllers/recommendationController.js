@@ -154,7 +154,7 @@ const runRecommendationPipeline = async ({ userId, state, district, season, useR
       return {
         crop: crop?._id,
         cropName: pred.cropName,
-        suitabilityScore: pred.suitabilityScore,
+        suitabilityScore: Number(pred.suitabilityScore).toFixed(2),
         yieldPrediction: pred.yieldPrediction,
         explanation: pred.explanation,
         environmentalFactors: pred.environmentalFactors

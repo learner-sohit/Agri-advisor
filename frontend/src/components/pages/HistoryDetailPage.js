@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { useTranslation } from 'react-i18next';
+// import { useTranslation } from 'react-i18next';
 import { toast } from 'react-toastify';
 import api from '../../utils/api';
 import './HistoryDetailPage.css';
 
 const HistoryDetailPage = () => {
-  const { t } = useTranslation();
+  // Removed unused 't' from useTranslation
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -315,7 +315,7 @@ const HistoryDetailPage = () => {
                   <div className="crop-main">
                     <h3 className="crop-name">{crop.cropName}</h3>
                     <div className={`score-badge ${getSuitabilityClass(crop.suitabilityScore)}`}>
-                      {crop.suitabilityScore}%
+                      {Number(crop.suitabilityScore).toFixed(2)}%
                     </div>
                   </div>
                   <div className="crop-score-bar">

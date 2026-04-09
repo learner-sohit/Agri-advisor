@@ -1,10 +1,10 @@
 import React from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+// import { useTranslation } from 'react-i18next';
 import './RecommendationsPage.css';
 
 const RecommendationsPage = () => {
-  const { t } = useTranslation();
+  // Removed unused 't' from useTranslation
   const location = useLocation();
   const navigate = useNavigate();
   const { recommendations, environmentalSnapshot, locationInfo } = location.state || {};
@@ -46,9 +46,9 @@ const RecommendationsPage = () => {
   const formatScore = (score) => {
     const numeric = Number(score);
     if (!Number.isFinite(numeric)) {
-      return '0';
+      return '0.00';
     }
-    return numeric.toFixed(1).replace(/\.0$/, '');
+    return numeric.toFixed(2);
   };
 
   const truncateText = (text, maxLength = 110) => {

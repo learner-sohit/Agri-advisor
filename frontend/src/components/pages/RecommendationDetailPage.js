@@ -1,13 +1,13 @@
 import React from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+// import { useTranslation } from 'react-i18next';
 import './RecommendationDetailPage.css';
 
 const RecommendationDetailPage = () => {
-  const { t } = useTranslation();
+  // Removed unused 't' from useTranslation
   const location = useLocation();
   const navigate = useNavigate();
-  const { recommendation, environmentalSnapshot, locationInfo, rank, totalCrops, fromHistory, historyId } = location.state || {};
+  const { recommendation, environmentalSnapshot, locationInfo, rank, totalCrops, fromHistory } = location.state || {};
 
   // Redirect if no data
   if (!recommendation) {
@@ -116,7 +116,7 @@ const RecommendationDetailPage = () => {
                       a 15.9155 15.9155 0 0 1 0 -31.831"
                   />
                 </svg>
-                <div className="score-text">{suitabilityScore}%</div>
+                <div className="score-text">{Number(suitabilityScore).toFixed(2)}%</div>
               </div>
               <div className="score-info">
                 <p>This crop has a <strong>{getSuitabilityLabel(suitabilityScore).toLowerCase()}</strong> with your location's soil and weather conditions.</p>

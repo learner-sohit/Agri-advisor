@@ -1,13 +1,13 @@
 import React from 'react';
 import { useQuery } from 'react-query';
-import { useTranslation } from 'react-i18next';
+// import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import api from '../../utils/api';
 import './RecommendationHistory.css';
 
 const RecommendationHistory = () => {
-  const { t } = useTranslation();
+  // Removed unused 't' from useTranslation
   const navigate = useNavigate();
   
   const { data, isLoading, error } = useQuery(
@@ -184,7 +184,7 @@ const RecommendationHistory = () => {
                               ></div>
                             </div>
                           </div>
-                          <div className="rec-score">{recItem.suitabilityScore}%</div>
+                          <div className="rec-score">{Number(recItem.suitabilityScore).toFixed(2)}%</div>
                         </div>
                       ))}
                     </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -9,6 +10,15 @@ import api from '../../utils/api';
 import './Analytics.css';
 
 const Analytics = () => {
+  const { user, loading: authLoading } = useAuth();
+  const [token, setToken] = useState(localStorage.getItem('token'));
+
+  // Listen for token changes (login/logout)
+  useEffect(() => {
+    const onStorage = () => setToken(localStorage.getItem('token'));
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [recommendations, setRecommendations] = useState([]);
@@ -83,16 +93,31 @@ const Analytics = () => {
   };
 
   useEffect(() => {
-    fetchAnalytics();
-  }, []);
+    // Reset state when user or token changes
+    setRecommendations([]);
+    setAnalytics({
+      totalRecommendations: 0,
+      cropDistribution: [],
+      seasonDistribution: [],
+      monthlyTrend: [],
+      stateDistribution: [],
+      avgSuitabilityByCategory: [],
+      recentActivity: []
+    });
+    setUseDemoData(false);
+    if (!authLoading && user && token) {
+      fetchAnalytics();
+    }
+    // eslint-disable-next-line
+  }, [user, authLoading, token]);
 
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
       const res = await api.get('/recommendations/history');
-      const data = res.data.data || [];
+      const data = res.data.recommendations || [];
       setRecommendations(data);
-      
+
       if (data.length === 0) {
         // No real data, show demo data by default
         setUseDemoData(true);
@@ -207,7 +232,7 @@ const Analytics = () => {
     });
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="analytics-container">
         <div className="analytics-loading">
@@ -220,6 +245,10 @@ const Analytics = () => {
 
   return (
     <div className="analytics-container">
+      {/* Debug: Show logged-in user info */}
+      <div style={{ background: '#f6f6f6', padding: '8px 16px', borderRadius: 6, marginBottom: 12, fontSize: 14, color: '#333' }}>
+        <strong>Logged in as:</strong> {user?.email || user?.name || user?._id || 'Unknown'}
+      </div>
       {/* Header */}
       <div className="analytics-header">
         <div className="header-content">

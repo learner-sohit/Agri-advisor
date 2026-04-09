@@ -35,16 +35,21 @@ const queryClient = new QueryClient({
   },
 });
 
+
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  
   if (loading) {
     return <div>Loading...</div>;
   }
-  
   return user ? children : <Navigate to="/login" />;
 };
+
+// Wrapper to force remount of Analytics on user change
+function AnalyticsWithKey() {
+  const { user } = useAuth();
+  return <Analytics key={user?._id || 'guest'} />;
+}
 
 function App() {
   return (
@@ -108,7 +113,7 @@ function App() {
                 path="/analytics"
                 element={
                   <ProtectedRoute>
-                    <Analytics />
+                    <AnalyticsWithKey />
                   </ProtectedRoute>
                 }
               />

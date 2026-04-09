@@ -85,6 +85,8 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     delete axios.defaults.headers.common['Authorization'];
     toast.info('Logged out successfully');
+    // Force full reload to clear all state and context
+    window.location.href = '/login';
   };
 
   const value = {
